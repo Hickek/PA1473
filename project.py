@@ -1,8 +1,2 @@
-
-
-
-
-
-
 print("hellooo")
 print("test")
