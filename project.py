@@ -1,3 +1,8 @@
-print("Goodbye World!")
-i = 1+1
-txt = "hej"
+
+
+
+
+
+
+print("hellooo")
+print("test")
