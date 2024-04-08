@@ -69,17 +69,9 @@ gripper_motor.reset_angle(0)
 gripper_motor.run_target(100, -90)
 
 def robot_pick(position):
-    # This function makes the robot base rotate to the indicated
-    # position. There it lowers the elbow, closes the gripper, and
-    # raises the elbow to pick up the object.
-
-    # Rotate to the pick-up position.
     base_motor.run_target(400, position)
-    # Lower the arm.
     elbow_motor.run_target(40, 0)
-    # Close the gripper to grab the wheel stack.
     gripper_motor.run_until_stalled(200, then=Stop.HOLD, duty_limit=50)
-    # Raise the arm to lift the wheel stack.
     elbow_motor.run_target(200, 30)
 
     #gripper_motor.angle()
@@ -89,18 +81,11 @@ def robot_pick(position):
 
 
 def robot_release(position):
-    # This function makes the robot base rotate to the indicated
-    # position. There it lowers the elbow, opens the gripper to
-    # release the object. Then it raises its arm again.
-    # Rotate to the drop-off position.
     base_motor.run_target(400, position)
-    # Lower the arm to put the wheel stack on the ground.
     #elbow_motor.run_target(60, 0)
     #elbow_motor.run_target(-60, 0)
     elbow_motor.run_until_stalled(-100, duty_limit=-10)
-    # Open the gripper to release the wheel stack.
     gripper_motor.run_target(200, -90)
-    # Raise the arm.
     elbow_motor.run_target(200, 60)
 
 
@@ -159,7 +144,8 @@ def color_detection():
 
 def color_detection_2():
     # Color detection v4
-    # Not yet tested
+    # Use v3 instead
+    # Crashes
     # Takes brightness of the color into account
     # Not sure that is a good thing thought as the small pieces are seen as darker than the large pieces
 
@@ -196,8 +182,32 @@ def color_detection_2():
 
 def act_based_on_color():
     detected_color = color_detection()
+
     if detected_color == -100:
-        ev3.screen.draw_text(10, 80, "No item found")
+        found_color = "no object found"
+    elif detected_color <= 25:
+        found_color = "red"
+    elif detected_color <= 50:
+        found_color = "orange"
+    elif detected_color <= 80:
+        found_color = "yellow"
+    elif detected_color <= 165:
+        found_color = "green"
+    elif detected_color <= 190:
+        found_color = "cyan"
+    elif detected_color <= 270:
+        found_color = "blue"
+    elif detected_color <= 300:
+        found_color = "purple"
+    elif detected_color <= 340:
+        found_color = "pink"
+    else:
+        found_color = "red"
+    
+    ev3.screen.draw_text(10, 20, "Current objects color:")
+    ev3.screen.draw_text(10, 40, found_color)
+
+    if detected_color == -100:
         gripper_motor.run_target(500, -90)
 
     elif detected_color == color_list[0]:
@@ -205,14 +215,14 @@ def act_based_on_color():
 
     elif detected_color == color_list[1]:
         robot_release(MID)
-       
+
     elif detected_color == color_list[2]:
         robot_release(LEFT)
 
     elif detected_color == color_list[3]:
         robot_release(EXTRA)
 
-# Define the four destinations for picking up and moving the wheel stacks.
+# Define the four destinations
 PICKUP = 5
 EXTRA = 45
 RIGHT = 102
@@ -220,13 +230,6 @@ MID = 155
 LEFT = 205
 
 # This is the main part of the program. It is a loop that repeats endlessly.
-#
-# First, the robot moves the object on the left towards the middle.
-# Second, the robot moves the object on the right towards the left.
-# Finally, the robot moves the object that is now in the middle, to the right.
-#
-# Now we have a wheel stack on the left and on the right as before, but they
-# have switched places. Then the loop repeats to do this over and over.
 
 elbow_motor.run_target(60, 70)
 while True:
