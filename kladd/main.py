@@ -23,3 +23,20 @@ sock.send("python /home/robot/belt/main.py")
 
 # Stäng anslutningen
 sock.close()
+
+# Motor setup
+belt = Motor(Port.D)
+
+def execute_command(command):
+    if command == 'start':
+        belt.run(200)
+        ev3.screen.print("Belt running")
+    elif command == 'stop':
+        belt.stop()
+        ev3.screen.print("Belt stopped")
+
+while True:
+    command_box.wait()
+    command = command_box.read()
+    execute_command(command)
+    wait(100)

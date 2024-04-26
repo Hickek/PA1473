@@ -4,6 +4,7 @@ from pybricks.hubs import EV3Brick
 from pybricks.ev3devices import Motor, TouchSensor, ColorSensor
 from pybricks.parameters import Port, Stop, Direction, Button
 from pybricks.tools import wait
+from pybricks.messaging import BluetoothMailboxServer, TextMailbox
 #from pybricks.parameters import Color
 
 # Initialize the EV3 Brick
@@ -43,6 +44,27 @@ elbow_sensor = ColorSensor(Port.S2)
 # the Color Sensor detects the white beam. Then reset the motor
 # angle to make this the zero point. Finally, hold the motor
 # in place so it does not move.
+
+#Connect conveyor belt
+belt = True
+if belt is True:
+
+    server = BluetoothMailboxServer()
+    mbox = TextMailbox('greeting', server)
+
+    # The server must be started before the client!
+    ev3.screen.draw_text(10, 20, 'waiting for connection...')
+    server.wait_for_connection()
+    ev3.screen.clear()
+    ev3.screen.draw_text(10, 20, 'connected!')
+
+    # In this program, the server waits for the client to send the first message
+    # and then sends a reply.
+    mbox.wait()
+    ev3.screen.clear()
+    ev3.screen.draw_text(10, 20, mbox.read())
+    mbox.send("Hej")
+
 elbow_motor.run_time(30, 1000)
 #elbow_motor.run(-10)
 #while elbow_sensor.reflection() < 28:
@@ -67,32 +89,6 @@ base_motor.hold()
 gripper_motor.run_until_stalled(100, then=Stop.COAST, duty_limit=50)
 gripper_motor.reset_angle(0)
 gripper_motor.run_target(100, -90)
-
-def robot_pick(position):
-    base_motor.run_target(400, position)
-    elbow_motor.run_target(40, 0)
-    gripper_motor.run_until_stalled(200, then=Stop.HOLD, duty_limit=50)
-    elbow_motor.run_target(200, 30)
-
-    #gripper_motor.angle()
-    #open: -90
-    #closed: 5
-    #gripping: -20
-
-
-def robot_release(position):
-    base_motor.run_target(400, position)
-    #elbow_motor.run_target(60, 0)
-    #elbow_motor.run_target(-60, 0)
-    elbow_motor.run_until_stalled(-100, duty_limit=-10)
-    gripper_motor.run_target(200, -90)
-    elbow_motor.run_target(200, 60)
-
-
-# Play three beeps to indicate that the initialization is complete.
-for i in range(3):
-    ev3.speaker.beep()
-    wait(100)
 
 color_list = []
 def color_detection():
@@ -122,6 +118,10 @@ def color_detection():
     if gripper_motor.angle() > -10:
         hue = -100
         no_item = True
+        wait(5000)
+
+    ev3.screen.clear()
+    ev3.screen.draw_text(10, 60, hue)
 
     color_found = False
     if len(color_list) > 0 and not no_item:
@@ -129,67 +129,71 @@ def color_detection():
             diff = abs(hue - color)
             if diff > 180:
                 diff = 360 - diff
-            if diff <= 30:
+            if diff <= 25:
                 hue = color
                 color_found = True
+                
                 break
 
     if not color_found and not no_item:
         color_list.append(hue)
-    ev3.screen.clear()
-    ev3.screen.draw_text(10, 20, hue)
-    ev3.screen.draw_text(10, 40, len(color_list))
+    #ev3.screen.clear() remove #
+    #ev3.screen.draw_text(10, 20, hue)
+    #ev3.screen.draw_text(10, 40, len(color_list))
 
     return hue
 
-def color_detection_2():
-    # Color detection v4
-    # Use v3 instead
-    # Crashes
-    # Takes brightness of the color into account
-    # Not sure that is a good thing thought as the small pieces are seen as darker than the large pieces
+def robot_pick(position):
+    base_motor.run_target(400, position)
+    if belt is True:
+        while True:
+            rgb = elbow_sensor.rgb()
+            R = rgb[0]
+            G = rgb[1]
+            B = rgb[2]
+            if R + G + B > 5:
+                mbox.send("Stop")
+                break
+            else:
+                mbox.send("Continue")
 
-    rgb = elbow_sensor.rgb()
-    r = rgb[0]
-    g = rgb[1]
-    b = rgb[2]
+    elbow_motor.run_target(60, 0)
+    if belt is True:
+        mbox.send("Continue")
+    gripper_motor.run_until_stalled(200, then=Stop.HOLD, duty_limit=50)
+    if belt is False:
+        elbow_motor.run_target(200, 30)
 
-    reflection = (r + g + b) / 3
-    no_item = False
-    if reflection <= 12:
-        hue = -100
-        no_item = True
+    #gripper_motor.angle()
+    #open: -90
+    #closed: 5
+    #gripping: -20
 
-    color_found = False
-    if max(rgb) == min(rgb):
-        difference = -1
-    else:
-        if len(color_list) > 0 and not no_item:
-            for color in color_list:
-                r_diff = abs(r - color[0])
-                g_diff = abs(g - color[1])
-                b_diff = abs(b - color[2])
-                difference = (r_diff ** 2 + g_diff ** 2 + b_diff ** 2) ** 0.5
-                if difference <= 10:
-                    hue = color
-                    color_found = True
-                    break
 
-    if not color_found and not no_item:
-        color_list.append(hue)
+def robot_release(position):
+    base_motor.run_target(400, position)
+    #elbow_motor.run_target(60, 0)
+    #elbow_motor.run_target(-60, 0)
+    elbow_motor.run_until_stalled(-100, duty_limit=-10)
+    gripper_motor.run_target(200, -90)
+    elbow_motor.run_target(200, 60)
 
-    return hue
+
+# Play three beeps to indicate that the initialization is complete.
+for i in range(3):
+    ev3.speaker.beep()
+    wait(100)
 
 def act_based_on_color():
     detected_color = color_detection()
 
     if detected_color == -100:
         found_color = "no object found"
-    elif detected_color <= 25:
+    elif detected_color <= 10:
         found_color = "red"
-    elif detected_color <= 50:
+    elif detected_color <= 20:
         found_color = "orange"
-    elif detected_color <= 80:
+    elif detected_color <= 70:
         found_color = "yellow"
     elif detected_color <= 165:
         found_color = "green"
@@ -207,27 +211,29 @@ def act_based_on_color():
     ev3.screen.draw_text(10, 20, "Current objects color:")
     ev3.screen.draw_text(10, 40, found_color)
 
+    elbow_motor.run_target(200, 60)
+
     if detected_color == -100:
         gripper_motor.run_target(500, -90)
 
     elif detected_color == color_list[0]:
-        robot_release(RIGHT)
-
-    elif detected_color == color_list[1]:
-        robot_release(MID)
-
-    elif detected_color == color_list[2]:
         robot_release(LEFT)
 
-    elif detected_color == color_list[3]:
-        robot_release(EXTRA)
+    elif detected_color == color_list[1]:
+        robot_release(LEFTMID)
 
-# Define the four destinations
-PICKUP = 5
-EXTRA = 45
-RIGHT = 102
-MID = 155
-LEFT = 205
+    elif detected_color == color_list[2]:
+        robot_release(MID)
+
+    elif detected_color == color_list[3]:
+        robot_release(RIGHTMID)
+
+# Define the three destinations
+LEFT = 5
+LEFTMID = 45
+MID = 102
+RIGHTMID = 155
+PICKUP = 205
 
 # This is the main part of the program. It is a loop that repeats endlessly.
 
