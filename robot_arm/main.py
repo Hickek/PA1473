@@ -184,6 +184,46 @@ for i in range(3):
     ev3.speaker.beep()
     wait(100)
 
+
+
+def color_detection_2():
+    # Color detection v4
+    # Use v3 instead
+    # Crashes
+    # Takes brightness of the color into account
+    # Not sure that is a good thing thought as the small pieces are seen as darker than the large pieces
+
+    rgb = elbow_sensor.rgb()
+    r = rgb[0]
+    g = rgb[1]
+    b = rgb[2]
+
+    reflection = (r + g + b) / 3
+    no_item = False
+    if reflection <= 12:
+        hue = -100
+        no_item = True
+
+    color_found = False
+    if max(rgb) == min(rgb):
+        difference = -1
+    else:
+        if len(color_list) > 0 and not no_item:
+            for color in color_list:
+                r_diff = abs(r - color[0])
+                g_diff = abs(g - color[1])
+                b_diff = abs(b - color[2])
+                difference = (r_diff ** 2 + g_diff ** 2 + b_diff ** 2) ** 0.5
+                if difference <= 10:
+                    hue = color
+                    color_found = True
+                    break
+
+    if not color_found and not no_item:
+        color_list.append(hue)
+
+    return hue
+
 def act_based_on_color():
     detected_color = color_detection()
 

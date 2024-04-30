@@ -16,7 +16,7 @@ from pybricks.hubs import EV3Brick
 ev3 = EV3Brick()
 
 # This is the name of the remote EV3 or PC we are connecting to.
-SERVER = 'ev3dev'
+SERVER = 'ev3dev-F'
 
 client = BluetoothMailboxClient()
 mbox = TextMailbox('greeting', client)
@@ -74,7 +74,7 @@ def main():
         detected = mbox.read()
 
         if detected == "Stop":
-            wait(100)
+            wait(300)
             belt.hold()
             wait(13000)
             belt.run(speed)
