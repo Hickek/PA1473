@@ -18,30 +18,30 @@ class Pauser:
     def is_paused(self):
         return self.paused
 
+def another_function(pauser):
+    print("Working even more...")
+    time.sleep(1)
+    pauser.pause_event.wait()
+
 def main_loop(pauser):
     while True:
 
-        print("W")
+        # Do some work
+        print("Working...")
         time.sleep(1)
+
+        # Check if paused
         pauser.pause_event.wait()
-        print("Wo")
+
+        # More work
+        print("More work...")
         time.sleep(1)
+
+        # Check if paused
         pauser.pause_event.wait()
-        print("Wor")
-        time.sleep(1)
-        pauser.pause_event.wait()
-        print("Work")
-        time.sleep(1)
-        pauser.pause_event.wait()
-        print("Worki")
-        time.sleep(1)
-        pauser.pause_event.wait()
-        print("Workin")
-        time.sleep(1)
-        pauser.pause_event.wait()
-        print("Working")
-        time.sleep(1)
-        pauser.pause_event.wait()
+
+        # Even more work
+        another_function(pauser)
 
 
 if __name__ == "__main__":
@@ -55,7 +55,7 @@ if __name__ == "__main__":
             pauser.pause()
         elif command == "r":
             pauser.resume()
-        elif command == "exit":
+        elif command == "e":
             break
         else:
             print("Invalid command")

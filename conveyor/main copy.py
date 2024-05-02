@@ -73,6 +73,13 @@ def main():
 
         detected = mbox.read()
 
+        if detected == "Stop":
+            wait(300)
+            belt.hold()
+            wait(13000)
+            belt.run(speed)
+            detected = "Continue"
+
         if detected == "Pause":
             belt.hold()
             detected = mbox.read()

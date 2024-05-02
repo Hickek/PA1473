@@ -5,7 +5,8 @@ from pybricks.ev3devices import Motor, TouchSensor, ColorSensor
 from pybricks.parameters import Port, Stop, Direction, Button
 from pybricks.tools import wait
 from pybricks.messaging import BluetoothMailboxServer, TextMailbox
-#from pybricks.parameters import Color
+import threading
+import time
 
 # Initialize the EV3 Brick
 ev3 = EV3Brick()
@@ -45,8 +46,25 @@ elbow_sensor = ColorSensor(Port.S2)
 # angle to make this the zero point. Finally, hold the motor
 # in place so it does not move.
 
+#Threading 1/3
+# Skapa ett threading.Event-objekt för att hantera pausning
+pause_event = threading.Event()
+pause_event.set()  # Initially not paused, so set the event
+
+def pause():
+    """Pause the system by clearing the event."""
+    pause_event.clear()
+
+def resume():
+    """Resume the system by setting the event."""
+    pause_event.set()
+
+def is_paused():
+    """Check if the system is paused."""
+    return not pause_event.is_set()
+
 #Connect conveyor belt
-belt = True
+belt = False
 if belt is True:
 
     server = BluetoothMailboxServer()
@@ -90,46 +108,6 @@ gripper_motor.run_until_stalled(100, then=Stop.COAST, duty_limit=50)
 gripper_motor.reset_angle(0)
 gripper_motor.run_target(100, -90)
 
-def robot_pick(position):
-    base_motor.run_target(400, position)
-    if belt is True:
-        while True:
-            rgb = elbow_sensor.rgb()
-            R = rgb[0]
-            G = rgb[1]
-            B = rgb[2]
-            if R + G + B > 10:
-                mbox.send("Stop")
-                break
-            else:
-                mbox.send("Continue")
-            
-
-    elbow_motor.run_target(60, 0)
-    mbox.send("Continue")
-    gripper_motor.run_until_stalled(200, then=Stop.HOLD, duty_limit=50)
-    elbow_motor.run_target(200, 28)
-
-    #gripper_motor.angle()
-    #open: -90
-    #closed: 5
-    #gripping: -20
-
-
-def robot_release(position):
-    base_motor.run_target(400, position)
-    #elbow_motor.run_target(60, 0)
-    #elbow_motor.run_target(-60, 0)
-    elbow_motor.run_until_stalled(-100, duty_limit=-10)
-    gripper_motor.run_target(200, -90)
-    elbow_motor.run_target(200, 60)
-
-
-# Play three beeps to indicate that the initialization is complete.
-for i in range(3):
-    ev3.speaker.beep()
-    wait(100)
-
 color_list = []
 def color_detection():
     # Color detection v3
@@ -158,6 +136,10 @@ def color_detection():
     if gripper_motor.angle() > -10:
         hue = -100
         no_item = True
+        wait(5000)
+
+    ev3.screen.clear()
+    ev3.screen.draw_text(10, 60, hue)
 
     color_found = False
     if len(color_list) > 0 and not no_item:
@@ -165,65 +147,77 @@ def color_detection():
             diff = abs(hue - color)
             if diff > 180:
                 diff = 360 - diff
-            if diff <= 30:
+            if diff <= 25:
                 hue = color
                 color_found = True
+                
                 break
 
     if not color_found and not no_item:
         color_list.append(hue)
-    ev3.screen.clear()
+    #ev3.screen.clear() remove #
     #ev3.screen.draw_text(10, 20, hue)
     #ev3.screen.draw_text(10, 40, len(color_list))
 
     return hue
 
-def color_detection_2():
-    # Color detection v4
-    # Use v3 instead
-    # Crashes
-    # Takes brightness of the color into account
-    # Not sure that is a good thing thought as the small pieces are seen as darker than the large pieces
+def robot_pick(position, pauser):
+    pauser.pause_event.wait()
+    base_motor.run_target(400, position)
+    pauser.pause_event.wait()
+    if belt is True:
+        while True:
+            rgb = elbow_sensor.rgb()
+            R = rgb[0]
+            G = rgb[1]
+            B = rgb[2]
+            if R + G + B > 5:
+                mbox.send("Stop")
+                break
+            else:
+                mbox.send("Continue")
 
-    rgb = elbow_sensor.rgb()
-    r = rgb[0]
-    g = rgb[1]
-    b = rgb[2]
+    pauser.pause_event.wait()
+    elbow_motor.run_target(60, 0)
+    pauser.pause_event.wait()
+    if belt is True:
+        mbox.send("Continue")
+    gripper_motor.run_until_stalled(200, then=Stop.HOLD, duty_limit=50)
+    if belt is False:
+        elbow_motor.run_target(200, 30)
+    pauser.pause_event.wait()
 
-    reflection = (r + g + b) / 3
-    no_item = False
-    if reflection <= 12:
-        hue = -100
-        no_item = True
+    #gripper_motor.angle()
+    #open: -90
+    #closed: 5
+    #gripping: -20
 
-    color_found = False
-    if max(rgb) == min(rgb):
-        difference = -1
-    else:
-        if len(color_list) > 0 and not no_item:
-            for color in color_list:
-                r_diff = abs(r - color[0])
-                g_diff = abs(g - color[1])
-                b_diff = abs(b - color[2])
-                difference = (r_diff ** 2 + g_diff ** 2 + b_diff ** 2) ** 0.5
-                if difference <= 10:
-                    hue = color
-                    color_found = True
-                    break
 
-    if not color_found and not no_item:
-        color_list.append(hue)
+def robot_release(position, pauser):
+    pauser.pause_event.wait()
+    base_motor.run_target(400, position)
+    pauser.pause_event.wait()
+    elbow_motor.run_until_stalled(-100, duty_limit=-10)
+    pauser.pause_event.wait()
+    gripper_motor.run_target(200, -90)
+    pauser.pause_event.wait()
+    elbow_motor.run_target(200, 60)
+    pauser.pause_event.wait()
 
-    return hue
 
-def act_based_on_color():
+# Play three beeps to indicate that the initialization is complete.
+for i in range(3):
+    ev3.speaker.beep()
+    wait(100)
+
+def act_based_on_color(pauser):
     detected_color = color_detection()
 
     if detected_color == -100:
         found_color = "no object found"
-    elif detected_color <= 25:
+    elif detected_color <= 10:
         found_color = "red"
-    elif detected_color <= 50:
+    elif detected_color <= 20:
         found_color = "orange"
     elif detected_color <= 70:
         found_color = "yellow"
@@ -243,34 +237,65 @@ def act_based_on_color():
     ev3.screen.draw_text(10, 20, "Current objects color:")
     ev3.screen.draw_text(10, 40, found_color)
 
+    pauser.pause_event.wait()
     elbow_motor.run_target(200, 60)
+    pauser.pause_event.wait()
 
     if detected_color == -100:
+        pauser.pause_event.wait()
         gripper_motor.run_target(500, -90)
+        pauser.pause_event.wait()
 
     elif detected_color == color_list[0]:
-        robot_release(LEFT)
+        robot_release(ZONE_1, pauser)
 
     elif detected_color == color_list[1]:
-        robot_release(LEFTMID)
+        robot_release(ZONE_2, pauser)
 
     elif detected_color == color_list[2]:
-        robot_release(MID)
+        robot_release(ZONE_3, pauser)
 
     elif detected_color == color_list[3]:
-        robot_release(RIGHTMID)
+        robot_release(ZONE_4, pauser)
 
-# Define the four destinations
-LEFT = 5
-LEFTMID = 45
-MID = 102
-RIGHTMID = 155
-PICKUP = 205
+# Define the three destinations
+ZONE_1 = 5
+ZONE_2 = 45
+ZONE_3 = 102
+ZONE_4 = 155 #future emergency
+ZONE_5 = 205 #pickup
 
 # This is the main part of the program. It is a loop that repeats endlessly.
 
-elbow_motor.run_target(60, 70)
-while True:
-    # M
-    robot_pick(PICKUP)
-    act_based_on_color()  # Check color and act accordingly
+#Threading 2/3
+def main_loop(pauser):
+
+    elbow_motor.run_target(60, 70)
+    pauser.pause_event.wait()
+    while True:
+        pauser.pause_event.wait()
+        robot_pick(ZONE_5, pauser)
+        pauser.pause_event.wait()
+        act_based_on_color(pauser)  # Check color and act accordingly
+        pauser.pause_event.wait()
+
+#Threading 3/3
+if __name__ == "__main__":
+    pauser = Pauser()
+    wait(5000)
+    main_thread = threading.Thread(target=main_loop, args=(pauser,))
+    main_thread.start()
+
+    while True:
+        if Button.UP in ev3.buttons.pressed():
+            if belt == True:
+                mbox.send("Pause")
+            pauser.pause()
+        if Button.DOWN in ev3.buttons.pressed():
+            if belt == True:
+                mbox.send("Continue")
+            pauser.resume()
+        #elif command == "e":
+        #    break
+        #else:
+        #    print("Invalid command")
