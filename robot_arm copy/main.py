@@ -46,29 +46,86 @@ elbow_sensor = ColorSensor(Port.S2)
 # angle to make this the zero point. Finally, hold the motor
 # in place so it does not move.
 
+#Variable declaration
+belt = False
+EMERGENCY_ZONE = 155
+ZONE_1 = 5
+ZONE_2 = 45
+ZONE_3 = 102
+ZONE_4 = 155 #Remove before release
+ZONE_5 = 205 #pickup
+
+# Define menu options
+menu_options = ["Emergency", "Pause", "Schedule", "Change Zones"]
+zone_menu_options = ["Back to menu", "Pickup", "Drop-off 1", "Drop-off 2", "Drop-off 2", "Emergency Zone"]
+selected_option = 0
+zone_selected_option = 0
+paused = False
+menu = "main"
+
+found_color = "None"
+
+# Function to display menu
+def display_menu():
+    ev3.screen.clear()
+    if menu == "main":
+        ev3.screen.draw_text(10, 10, "Color: " + found_color)
+        for idx, option in enumerate(menu_options):
+
+            if idx == selected_option:
+                ev3.screen.draw_text(10, 20 * idx + 40, "-> " + option)
+            else:
+                ev3.screen.draw_text(10, 20 * idx + 40, option)
+
+    elif menu == "zones":
+        for idx, option in enumerate(zone_menu_options):
+
+            if idx == selected_option:
+                ev3.screen.draw_text(10, 20 * idx, "-> " + option)
+            else:
+                ev3.screen.draw_text(10, 20 * idx, option)
+
+def zone_menu():
+    ev3.screen.clear()
+    
+
 #Threading 1/3
-# Skapa ett threading.Event-objekt för att hantera pausning
-pause_event = threading.Event()
-pause_event.set()  # Initially not paused, so set the event
+paused = False
 
 def pause():
-    """Pause the system by clearing the event."""
-    pause_event.clear()
+    global paused
+    paused = True
 
 def resume():
-    """Resume the system by setting the event."""
-    pause_event.set()
+    global paused
+    paused = False
+    if belt == True:
+        mbox.send("Continue")
+
+def shutdown():
+    global paused
+    paused = True
+    wait(1000)
+    elbow_motor.run_target(20, 30)
+    base_motor.run_target(20, EMERGENCY_ZONE)
+    elbow_motor.run_until_stalled(-20, duty_limit=-10)
+    gripper_motor.run_target(20, -90)
 
 def is_paused():
-    """Check if the system is paused."""
-    return not pause_event.is_set()
+    return paused
+
+def pause_check():
+    while is_paused():
+        time.sleep(0.1)
+    if belt == True:
+        mbox.send("Pause")
 
 #Connect conveyor belt
-belt = False
 if belt is True:
 
     server = BluetoothMailboxServer()
     mbox = TextMailbox('greeting', server)
+
 
     # The server must be started before the client!
     ev3.screen.draw_text(10, 20, 'waiting for connection...')
@@ -81,13 +138,13 @@ if belt is True:
     mbox.wait()
     ev3.screen.clear()
     ev3.screen.draw_text(10, 20, mbox.read())
-    mbox.send("Hej")
+    mbox.send("Hello")
 
-elbow_motor.run_time(30, 1000)
+elbow_motor.run_time(30, 2000)
 #elbow_motor.run(-10)
 #while elbow_sensor.reflection() < 28:
 #    wait(10)
-elbow_motor.run_until_stalled(-10, then=Stop.HOLD, duty_limit=8)
+elbow_motor.run_until_stalled(-10, then=Stop.HOLD, duty_limit=6)
 elbow_motor.reset_angle(-15)
 elbow_motor.hold()
 # Initialize the base. First rotate it until the Touch Sensor
@@ -138,8 +195,8 @@ def color_detection():
         no_item = True
         wait(5000)
 
-    ev3.screen.clear()
-    ev3.screen.draw_text(10, 60, hue)
+    #ev3.screen.clear()
+    #ev3.screen.draw_text(10, 60, hue)
 
     color_found = False
     if len(color_list) > 0 and not no_item:
@@ -147,10 +204,10 @@ def color_detection():
             diff = abs(hue - color)
             if diff > 180:
                 diff = 360 - diff
-            if diff <= 25:
+            if diff <= 20:
                 hue = color
                 color_found = True
-                
+
                 break
 
     if not color_found and not no_item:
@@ -161,10 +218,14 @@ def color_detection():
 
     return hue
 
-def robot_pick(position, pauser):
-    pauser.pause_event.wait()
+def robot_pick(position):
+    #pause_event.wait()
+    pause_check()
     base_motor.run_target(400, position)
-    pauser.pause_event.wait()
+    #pause_event.wait()
+    pause_check()
+    if belt == True:
+        mbox.send("Continue")
     if belt is True:
         while True:
             rgb = elbow_sensor.rgb()
@@ -172,20 +233,27 @@ def robot_pick(position, pauser):
             G = rgb[1]
             B = rgb[2]
             if R + G + B > 5:
-                mbox.send("Stop")
+                mbox.send("Pause") #Stop
                 break
-            else:
-                mbox.send("Continue")
-
-    pauser.pause_event.wait()
+            #else:
+            #    mbox.send("Continue")
+    #pause_event.wait()
+    pause_check()
+    #elbow_motor.run_until_stalled(-60, then=Stop.HOLD, duty_limit=6)
     elbow_motor.run_target(60, 0)
-    pauser.pause_event.wait()
-    if belt is True:
-        mbox.send("Continue")
+    #pause_event.wait()
+    pause_check()
+    #if belt is True:
+    #    mbox.send("Continue")
+    #pause_event.wait()
+    pause_check()
     gripper_motor.run_until_stalled(200, then=Stop.HOLD, duty_limit=50)
+    #pause_event.wait()
+    pause_check()
     if belt is False:
-        elbow_motor.run_target(200, 30)
-    pauser.pause_event.wait()
+        elbow_motor.run_target(200, 29)
+    #pause_event.wait()
+    pause_check()
 
     #gripper_motor.angle()
     #open: -90
@@ -193,16 +261,21 @@ def robot_pick(position, pauser):
     #gripping: -20
 
 
-def robot_release(position, pauser):
-    pauser.pause_event.wait()
+def robot_release(position):
+    #pause_event.wait()
+    pause_check()
     base_motor.run_target(400, position)
-    pauser.pause_event.wait()
+    #pause_event.wait()
+    pause_check()
     elbow_motor.run_until_stalled(-100, duty_limit=-10)
-    pauser.pause_event.wait()
+    #pause_event.wait()
+    pause_check()
     gripper_motor.run_target(200, -90)
-    pauser.pause_event.wait()
+    #pause_event.wait()
+    pause_check()
     elbow_motor.run_target(200, 60)
-    pauser.pause_event.wait()
+    #pause_event.wait()
+    pause_check()
 
 
 # Play three beeps to indicate that the initialization is complete.
@@ -210,11 +283,12 @@ for i in range(3):
     ev3.speaker.beep()
     wait(100)
 
-def act_based_on_color(pauser):
+def act_based_on_color():
     detected_color = color_detection()
+    global found_color
 
     if detected_color == -100:
-        found_color = "no object found"
+        found_color = "None"
     elif detected_color <= 10:
         found_color = "red"
     elif detected_color <= 20:
@@ -234,68 +308,113 @@ def act_based_on_color(pauser):
     else:
         found_color = "red"
     
-    ev3.screen.draw_text(10, 20, "Current objects color:")
-    ev3.screen.draw_text(10, 40, found_color)
+    #ev3.screen.draw_text(10, 20, "Current objects color:")
+    #ev3.screen.draw_text(10, 40, found_color)
 
-    pauser.pause_event.wait()
+    #pause_event.wait()
+    pause_check()
     elbow_motor.run_target(200, 60)
-    pauser.pause_event.wait()
+    #pause_event.wait()
+    pause_check()
 
     if detected_color == -100:
-        pauser.pause_event.wait()
+        #pause_event.wait()
+        pause_check()
         gripper_motor.run_target(500, -90)
-        pauser.pause_event.wait()
+        #pause_event.wait()
+        pause_check()
 
     elif detected_color == color_list[0]:
-        robot_release(ZONE_1, pauser)
+        robot_release(ZONE_1)
 
     elif detected_color == color_list[1]:
-        robot_release(ZONE_2, pauser)
+        robot_release(ZONE_2)
 
     elif detected_color == color_list[2]:
-        robot_release(ZONE_3, pauser)
+        robot_release(ZONE_3)
 
     elif detected_color == color_list[3]:
-        robot_release(ZONE_4, pauser)
+        robot_release(ZONE_4)
 
-# Define the three destinations
-ZONE_1 = 5
-ZONE_2 = 45
-ZONE_3 = 102
-ZONE_4 = 155 #future emergency
-ZONE_5 = 205 #pickup
 
 # This is the main part of the program. It is a loop that repeats endlessly.
 
 #Threading 2/3
-def main_loop(pauser):
+def main_loop():
 
     elbow_motor.run_target(60, 70)
-    pauser.pause_event.wait()
+    #pause_event.wait()
+    pause_check()
     while True:
-        pauser.pause_event.wait()
-        robot_pick(ZONE_5, pauser)
-        pauser.pause_event.wait()
-        act_based_on_color(pauser)  # Check color and act accordingly
-        pauser.pause_event.wait()
+        #pause_event.wait()
+        pause_check()
+        robot_pick(ZONE_5)
+        #pause_event.wait()
+        pause_check()
+        act_based_on_color()  # Check color and act accordingly
+        #pause_event.wait()
+        pause_check()
 
 #Threading 3/3
 if __name__ == "__main__":
-    pauser = Pauser()
-    wait(5000)
-    main_thread = threading.Thread(target=main_loop, args=(pauser,))
+    main_thread = threading.Thread(target=main_loop)
     main_thread.start()
 
     while True:
+        display_menu()
+
+        # Wait for button press
+        while not any(ev3.buttons.pressed()):
+            wait(10)
+
+        # Handle button press
+        wait(200)  # Debounce delay
         if Button.UP in ev3.buttons.pressed():
-            if belt == True:
-                mbox.send("Pause")
-            pauser.pause()
-        if Button.DOWN in ev3.buttons.pressed():
-            if belt == True:
-                mbox.send("Continue")
-            pauser.resume()
-        #elif command == "e":
-        #    break
-        #else:
-        #    print("Invalid command")
+            selected_option = (selected_option - 1) % len(menu_options)
+        elif Button.DOWN in ev3.buttons.pressed():
+            selected_option = (selected_option + 1) % len(menu_options)
+        elif Button.CENTER in ev3.buttons.pressed():
+            # Do something when the center button is pressed
+            if selected_option == 0:
+                if belt == True:
+                    mbox.send("Pause")
+                shutdown()
+            elif selected_option == 1:
+                paused = not paused
+                if paused == True:
+                    menu_options[1] = "Resume"
+                    if belt == True:
+                        mbox.send("Pause")
+                    pause()
+                else:
+                    menu_options[1] = "Pause"
+                    if belt == True:
+                        mbox.send("Continue")
+                    resume()
+                #pause
+            elif selected_option == 2:
+                pass
+            elif selected_option == 3:
+                while not any(ev3.buttons.pressed()):
+                    wait(10)
+
+                # Handle button press
+                wait(200)  # Debounce delay
+                menu = "zones"
+                if Button.UP in ev3.buttons.pressed():
+                    zone_selected_option = (zone_selected_option - 1) % len(zone_menu_options)
+                elif Button.DOWN in ev3.buttons.pressed():
+                    zone_selected_option = (zone_selected_option + 1) % len(zone_menu_options)
+                elif Button.CENTER in ev3.buttons.pressed():
+                    if zone_selected_option == 0:
+                        menu = "main"
+                    if zone_selected_option == 1:
+                        pass
+                    if zone_selected_option == 2:
+                        pass
+                    if zone_selected_option == 3:
+                        pass
+                    if zone_selected_option == 4:
+                        pass
+                    if zone_selected_option == 5:
+                        pass

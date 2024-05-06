@@ -7,6 +7,8 @@ from pybricks.tools import wait
 from pybricks.messaging import BluetoothMailboxServer, TextMailbox
 import threading
 import time
+import datetime
+import pytz
 
 # Initialize the EV3 Brick
 ev3 = EV3Brick()
@@ -54,6 +56,20 @@ ZONE_2 = 45
 ZONE_3 = 102
 ZONE_4 = 155 #Remove before release
 ZONE_5 = 205 #pickup
+
+# Define menu options
+menu_options = ["Emergency", "Pause", "Schedule"]
+selected_option = 0
+paused = False
+
+# Function to display menu
+def display_menu():
+    ev3.screen.clear()
+    for idx, option in enumerate(menu_options):
+        if idx == selected_option:
+            ev3.screen.draw_text(10, 20 * idx, "-> " + option)
+        else:
+            ev3.screen.draw_text(10, 20 * idx, option)
 
 #Threading 1/3
 paused = False
@@ -310,6 +326,16 @@ def main_loop():
     elbow_motor.run_target(60, 70)
     #pause_event.wait()
     pause_check()
+    
+    # local_tz = pytz.timezone('Europe/Amsterdam')
+    # now = datetime.datetime.now(local_tz)
+    
+    # start_hour = 15
+    # end_hour = 15
+    # start_minute = 20
+    # end_minute = 33
+    # while (now.hour >= start_hour and now.minute >= start_minute) and (now.hour <= end_hour and now.minute <= end_minute):
+        
     while True:
         #pause_event.wait()
         pause_check()
@@ -322,23 +348,41 @@ def main_loop():
 
 #Threading 3/3
 if __name__ == "__main__":
+    
     main_thread = threading.Thread(target=main_loop)
     main_thread.start()
 
     while True:
+        display_menu()
+
+        # Wait for button press
+        while not any(ev3.buttons.pressed()):
+            wait(10)
+
+        # Handle button press
+        wait(200)  # Debounce delay
         if Button.UP in ev3.buttons.pressed():
-            if belt == True:
-                mbox.send("Pause")
-            pause()
-        if Button.DOWN in ev3.buttons.pressed():
-            if belt == True:
-                mbox.send("Continue")
-            resume()
-        if Button.CENTER in ev3.buttons.pressed():
-            if belt == True:
-                mbox.send("Pause")
-            shutdown()
-        #elif command == "e":
-        #    break
-        #else:
-        #    print("Invalid command")
+            selected_option = (selected_option - 1) % len(menu_options)
+        elif Button.DOWN in ev3.buttons.pressed():
+            selected_option = (selected_option + 1) % len(menu_options)
+        elif Button.CENTER in ev3.buttons.pressed():
+            # Do something when the center button is pressed
+            if selected_option == 0:
+                if belt == True:
+                    mbox.send("Pause")
+                shutdown()
+            elif selected_option == 1:
+                paused = not paused
+                if paused == True:
+                    menu_options[1] = "Resume"
+                    if belt == True:
+                        mbox.send("Pause")
+                    pause()
+                else:
+                    menu_options[1] = "Pause"
+                    if belt == True:
+                        mbox.send("Continue")
+                    resume()
+                #pause
+            elif selected_option == 2:
+                pass
