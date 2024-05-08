@@ -323,19 +323,9 @@ def act_based_on_color():
 #Threading 2/3
 def main_loop():
 
-    elbow_motor.run_target(60, 70)
     #pause_event.wait()
+    elbow_motor.run_target(60, 70)
     pause_check()
-    
-    # local_tz = pytz.timezone('Europe/Amsterdam')
-    # now = datetime.datetime.now(local_tz)
-    
-    # start_hour = 15
-    # end_hour = 15
-    # start_minute = 20
-    # end_minute = 33
-    # while (now.hour >= start_hour and now.minute >= start_minute) and (now.hour <= end_hour and now.minute <= end_minute):
-        
     while True:
         #pause_event.wait()
         pause_check()
@@ -351,7 +341,7 @@ if __name__ == "__main__":
     
     main_thread = threading.Thread(target=main_loop)
     main_thread.start()
-
+    
     while True:
         display_menu()
 

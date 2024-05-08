@@ -8,43 +8,24 @@ from pybricks.messaging import BluetoothMailboxServer, TextMailbox
 import threading
 import time
 
-# Initialize the EV3 Brick
+
+
 ev3 = EV3Brick()
 
-# Configure the gripper motor on Port A with default settings.
 gripper_motor = Motor(Port.A)
 
 # Configure the elbow motor. It has an 8-teeth and a 40-teeth gear
-# connected to it. We would like positive speed values to make the
-# arm go upward. This corresponds to counterclockwise rotation
-# of the motor.
+# connected to it.
 elbow_motor = Motor(Port.B, Direction.COUNTERCLOCKWISE, [8, 40])
 
 # Configure the motor that rotates the base. It has a 12-teeth and a
-# 36-teeth gear connected to it. We would like positive speed values
-# to make the arm go away from the Touch Sensor. This corresponds
-# to counterclockwise rotation of the motor.
+# 36-teeth gear connected to it.
 base_motor = Motor(Port.C, Direction.COUNTERCLOCKWISE, [12, 36])
 
-# Limit the elbow and base accelerations. This results in
-# very smooth motion. Like an industrial robot.
-#elbow_motor.control.limits(speed=60, acceleration=120)
-#base_motor.control.limits(speed=200, acceleration=120)
-
-# Set up the Touch Sensor. It acts as an end-switch in the base
-# of the robot arm. It defines the starting point of the base.
 base_switch = TouchSensor(Port.S1)
 
-# Set up the Color Sensor. This sensor detects when the elbow
-# is in the starting position. This is when the sensor sees the
-# white beam up close.
 elbow_sensor = ColorSensor(Port.S2)
 
-# Initialize the elbow. First make it go down for one second.
-# Then make it go upwards slowly (15 degrees per second) until
-# the Color Sensor detects the white beam. Then reset the motor
-# angle to make this the zero point. Finally, hold the motor
-# in place so it does not move.
 
 #Variable declaration
 belt = False
@@ -57,7 +38,7 @@ ZONE_5 = 205 #pickup
 
 # Define menu options
 menu_options = ["Emergency", "Pause", "Schedule", "Change Zones"]
-zone_menu_options = ["Back to menu", "Pickup", "Drop-off 1", "Drop-off 2", "Drop-off 2", "Emergency Zone"]
+zone_menu_options = ["Back to menu", "Pickup", "Drop-off 1", "Drop-off 2", "Drop-off 3", "Emergency Zone"]
 selected_option = 0
 zone_selected_option = 0
 paused = False
@@ -72,7 +53,7 @@ def display_menu():
         ev3.screen.draw_text(10, 10, "Color: " + found_color)
         for idx, option in enumerate(menu_options):
 
-            if idx == selected_option:
+            if idx == selected_option:  
                 ev3.screen.draw_text(10, 20 * idx + 40, "-> " + option)
             else:
                 ev3.screen.draw_text(10, 20 * idx + 40, option)
@@ -84,9 +65,6 @@ def display_menu():
                 ev3.screen.draw_text(10, 20 * idx, "-> " + option)
             else:
                 ev3.screen.draw_text(10, 20 * idx, option)
-
-def zone_menu():
-    ev3.screen.clear()
     
 
 #Threading 1/3
@@ -138,15 +116,12 @@ if belt is True:
     mbox.wait()
     ev3.screen.clear()
     ev3.screen.draw_text(10, 20, mbox.read())
-    mbox.send("Hello")
 
 elbow_motor.run_time(30, 2000)
-#elbow_motor.run(-10)
-#while elbow_sensor.reflection() < 28:
-#    wait(10)
 elbow_motor.run_until_stalled(-10, then=Stop.HOLD, duty_limit=6)
 elbow_motor.reset_angle(-15)
 elbow_motor.hold()
+
 # Initialize the base. First rotate it until the Touch Sensor
 # in the base is pressed. Reset the motor angle to make this
 # the zero point. Then hold the motor in place so it does not move.
@@ -167,10 +142,6 @@ gripper_motor.run_target(100, -90)
 
 color_list = []
 def color_detection():
-    # Color detection v3
-    # Shown at demo 1
-    # Check resistance when closing claw to check if an item is present
-    # Also use resistance to place on elevated positions (when items are stacked)
 
     rgb = elbow_sensor.rgb()
     R = rgb[0]
@@ -188,15 +159,11 @@ def color_detection():
     if hue < 0:
         hue += 360
 
-    #ev3.screen.draw_text(10, 60, reflection)
     no_item = False
     if gripper_motor.angle() > -10:
         hue = -100
         no_item = True
         wait(5000)
-
-    #ev3.screen.clear()
-    #ev3.screen.draw_text(10, 60, hue)
 
     color_found = False
     if len(color_list) > 0 and not no_item:
@@ -212,17 +179,12 @@ def color_detection():
 
     if not color_found and not no_item:
         color_list.append(hue)
-    #ev3.screen.clear() remove #
-    #ev3.screen.draw_text(10, 20, hue)
-    #ev3.screen.draw_text(10, 40, len(color_list))
 
     return hue
 
 def robot_pick(position):
-    #pause_event.wait()
     pause_check()
     base_motor.run_target(400, position)
-    #pause_event.wait()
     pause_check()
     if belt == True:
         mbox.send("Continue")
@@ -233,48 +195,28 @@ def robot_pick(position):
             G = rgb[1]
             B = rgb[2]
             if R + G + B > 5:
-                mbox.send("Pause") #Stop
+                mbox.send("Pause")
                 break
-            #else:
-            #    mbox.send("Continue")
-    #pause_event.wait()
     pause_check()
-    #elbow_motor.run_until_stalled(-60, then=Stop.HOLD, duty_limit=6)
     elbow_motor.run_target(60, 0)
-    #pause_event.wait()
     pause_check()
-    #if belt is True:
-    #    mbox.send("Continue")
-    #pause_event.wait()
     pause_check()
     gripper_motor.run_until_stalled(200, then=Stop.HOLD, duty_limit=50)
-    #pause_event.wait()
     pause_check()
     if belt is False:
         elbow_motor.run_target(200, 29)
-    #pause_event.wait()
     pause_check()
-
-    #gripper_motor.angle()
-    #open: -90
-    #closed: 5
-    #gripping: -20
 
 
 def robot_release(position):
-    #pause_event.wait()
     pause_check()
     base_motor.run_target(400, position)
-    #pause_event.wait()
     pause_check()
     elbow_motor.run_until_stalled(-100, duty_limit=-10)
-    #pause_event.wait()
     pause_check()
     gripper_motor.run_target(200, -90)
-    #pause_event.wait()
     pause_check()
     elbow_motor.run_target(200, 60)
-    #pause_event.wait()
     pause_check()
 
 
@@ -308,20 +250,13 @@ def act_based_on_color():
     else:
         found_color = "red"
     
-    #ev3.screen.draw_text(10, 20, "Current objects color:")
-    #ev3.screen.draw_text(10, 40, found_color)
-
-    #pause_event.wait()
     pause_check()
     elbow_motor.run_target(200, 60)
-    #pause_event.wait()
     pause_check()
 
     if detected_color == -100:
-        #pause_event.wait()
         pause_check()
         gripper_motor.run_target(500, -90)
-        #pause_event.wait()
         pause_check()
 
     elif detected_color == color_list[0]:
@@ -336,24 +271,52 @@ def act_based_on_color():
     elif detected_color == color_list[3]:
         robot_release(ZONE_4)
 
+def zone_menu():
+    wait(200)
+    while not Button.CENTER in ev3.buttons.pressed():
+        while not any(ev3.buttons.pressed()):
+            wait(10)
+
+            # Handle button press
+            wait(200)  # Debounce delay
+            menu = "zones"
+            if Button.UP in ev3.buttons.pressed():
+                zone_selected_option = (zone_selected_option - 1) % len(zone_menu_options)
+            elif Button.DOWN in ev3.buttons.pressed():
+                zone_selected_option = (zone_selected_option + 1) % len(zone_menu_options)
+            elif Button.CENTER in ev3.buttons.pressed():
+                if zone_selected_option == 0:
+                    ev3.screen.draw_text(10, 30, "testing")
+                    menu = "main"
+                if zone_selected_option == 1:
+                    pass
+                if zone_selected_option == 2:
+                    pass
+                if zone_selected_option == 3:
+                    pass
+                if zone_selected_option == 4:
+                    pass
+                if zone_selected_option == 5:
+                    pass
+
 
 # This is the main part of the program. It is a loop that repeats endlessly.
 
 #Threading 2/3
 def main_loop():
-
     elbow_motor.run_target(60, 70)
-    #pause_event.wait()
     pause_check()
-    while True:
-        #pause_event.wait()
-        pause_check()
-        robot_pick(ZONE_5)
-        #pause_event.wait()
-        pause_check()
-        act_based_on_color()  # Check color and act accordingly
-        #pause_event.wait()
-        pause_check()
+
+    start_time = time.time()
+    duration = 15
+    while (time.time() - start_time) < duration:
+        while True:
+            pause_check()
+            robot_pick(ZONE_5)
+            pause_check()
+            act_based_on_color()
+            pause_check()
+
 
 #Threading 3/3
 if __name__ == "__main__":
@@ -374,11 +337,12 @@ if __name__ == "__main__":
         elif Button.DOWN in ev3.buttons.pressed():
             selected_option = (selected_option + 1) % len(menu_options)
         elif Button.CENTER in ev3.buttons.pressed():
-            # Do something when the center button is pressed
+
             if selected_option == 0:
                 if belt == True:
                     mbox.send("Pause")
                 shutdown()
+
             elif selected_option == 1:
                 paused = not paused
                 if paused == True:
@@ -391,30 +355,9 @@ if __name__ == "__main__":
                     if belt == True:
                         mbox.send("Continue")
                     resume()
-                #pause
+
             elif selected_option == 2:
                 pass
+            
             elif selected_option == 3:
-                while not any(ev3.buttons.pressed()):
-                    wait(10)
-
-                # Handle button press
-                wait(200)  # Debounce delay
-                menu = "zones"
-                if Button.UP in ev3.buttons.pressed():
-                    zone_selected_option = (zone_selected_option - 1) % len(zone_menu_options)
-                elif Button.DOWN in ev3.buttons.pressed():
-                    zone_selected_option = (zone_selected_option + 1) % len(zone_menu_options)
-                elif Button.CENTER in ev3.buttons.pressed():
-                    if zone_selected_option == 0:
-                        menu = "main"
-                    if zone_selected_option == 1:
-                        pass
-                    if zone_selected_option == 2:
-                        pass
-                    if zone_selected_option == 3:
-                        pass
-                    if zone_selected_option == 4:
-                        pass
-                    if zone_selected_option == 5:
-                        pass
+                zone_menu()
